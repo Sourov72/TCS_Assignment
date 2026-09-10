@@ -23,6 +23,7 @@ import asyncio
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -34,7 +35,10 @@ HOST = "127.0.0.1"
 PORT = 8933  # must match mcp_server/server.py's HTTP_PORT
 SERVER_URL = f"http://{HOST}:{PORT}/mcp"
 
-STARTUP_TIMEOUT_SECONDS = 15
+# The server's import chain (langchain + torch + sentence-transformers) takes
+# ~13s cold on a normal Windows machine, and longer when the OS file cache is
+# cold or antivirus is scanning those DLLs - so this needs generous headroom.
+STARTUP_TIMEOUT_SECONDS = 90
 STARTUP_POLL_INTERVAL_SECONDS = 0.5
 
 
@@ -48,14 +52,26 @@ def _is_server_listening() -> bool:
         return False
 
 
-def _start_server_in_background() -> None:
-    """Launch mcp_server/server.py as a detached background process, over
-    the HTTP transport."""
-    subprocess.Popen(
-        [sys.executable, str(SERVER_SCRIPT), "streamable-http"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+def _start_server_in_background() -> tuple[subprocess.Popen, Path]:
+    """Launch mcp_server/server.py as a background process over the HTTP
+    transport. Its output goes to a log file so that a crash during startup
+    can be reported as such, instead of looking like a plain timeout."""
+    log_path = Path(tempfile.gettempdir()) / "support_copilot_mcp_server.log"
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        process = subprocess.Popen(
+            [sys.executable, str(SERVER_SCRIPT), "streamable-http"],
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
+    return process, log_path
+
+
+def _read_server_log(log_path: Path, max_chars: int = 2000) -> str:
+    """Return the tail of the server's captured output, for error messages."""
+    try:
+        return log_path.read_text(encoding="utf-8", errors="replace")[-max_chars:]
+    except OSError:
+        return "(no server output captured)"
 
 
 def ensure_server_running() -> None:
@@ -64,17 +80,22 @@ def ensure_server_running() -> None:
     if _is_server_listening():
         return
 
-    _start_server_in_background()
+    process, log_path = _start_server_in_background()
 
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         if _is_server_listening():
             return
+        if process.poll() is not None:
+            raise RuntimeError(
+                f"MCP server exited during startup (exit code "
+                f"{process.returncode}):\n{_read_server_log(log_path)}"
+            )
         time.sleep(STARTUP_POLL_INTERVAL_SECONDS)
 
     raise RuntimeError(
         f"MCP server did not start within {STARTUP_TIMEOUT_SECONDS}s "
-        f"(expected to be listening on {SERVER_URL})"
+        f"(expected to be listening on {SERVER_URL}):\n{_read_server_log(log_path)}"
     )
 
 

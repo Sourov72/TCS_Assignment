@@ -108,7 +108,7 @@ def main() -> None:
     # Start the MCP server once per session, up front, so the first chat
     # message doesn't silently eat the ~few-second startup cost.
     if "mcp_server_ready" not in st.session_state:
-        with st.spinner("Starting assistant server..."):
+        with st.spinner("Starting assistant server (first load takes ~15s)..."):
             ensure_server_running()
         st.session_state.mcp_server_ready = True
 
