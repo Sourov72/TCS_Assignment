@@ -69,16 +69,16 @@ when it doesn't have enough information.
                     │ MCP clients)│  
                     └──────┬──────┘
                     ┌──────▼───────┐
-                    │  ReAct Agent  │  reasons about which tool(s) it
-                    │ (LangGraph +  │  needs, calls them, reads results,
-                    │  tool-calling)│  decides if it needs another - or
+                    │  ReAct Agent │  reasons about which tool(s) it
+                    │ (LangGraph + │  needs, calls them, reads results,
+                    │ tool-calling)│  decides if it needs another - or
                     └──┬────────┬──┘  asks for clarification instead
               ┌────────┘        └────────┐
       ┌───────▼──────┐          ┌────────▼──────┐
-      │  SQL tool     │          │  Policy tool   │
-      │ (NL→SQL via   │          │ (retrieve from │
-      │  DeepSeek)    │          │  FAISS + gen)  │
-      └───────┬───────┘          └───────┬───────┘
+      │  SQL tool    │          │  Policy tool  │
+      │ (NL→SQL via  │          │ (retrieve from│
+      │  DeepSeek)   │          │  FAISS + gen) │
+      └───────┬──────┘          └───────┬───────┘
               │                          │
       ┌───────▼───────┐          ┌───────▼───────┐
       │   SQLite      │          │  One   FAISS  │
