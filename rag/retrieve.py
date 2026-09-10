@@ -10,11 +10,14 @@ Run with (manual smoke test):
 
 import sys
 
-from ingest import load_index
+from ingest import index_exists, load_index
 
 
 def retrieve_relevant_chunks(query: str, k: int = 3) -> list:
-    """Return the top-k most relevant chunks from the combined policy index."""
+    """Return the top-k most relevant chunks from the combined policy index.
+    Returns an empty list if no PDF has been ingested yet."""
+    if not index_exists():
+        return []
     index = load_index()
     return index.similarity_search(query, k=k)
 

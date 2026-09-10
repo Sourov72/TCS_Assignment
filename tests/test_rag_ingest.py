@@ -1,98 +1,97 @@
 """
-Tests for the RAG ingestion pipeline (rag/ingest.py) - a single combined
-FAISS index built from every PDF in data/policies/.
+Tests for the RAG ingestion pipeline (rag/ingest.py). data/policies/ ships
+empty (see README - no PDF is pre-ingested), so these tests build their own
+isolated policies folder from Example_PDF/ instead of depending on
+data/policies/ having anything in it.
 
 Run with:
     venv\\Scripts\\python.exe -m pytest tests/test_rag_ingest.py -v
 """
 
+import shutil
 import sys
 from pathlib import Path
 
-# Make rag/ importable as plain modules when pytest is run from the project root.
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "rag"))
 
-import ingest  # noqa: E402
-from ingest import build_index  # noqa: E402
+import ingest
+from ingest import build_index
 
-KNOWN_PDF = "company_policies_western_capital.pdf"
+from conftest import EXAMPLE_PDF
+
 EXPECTED_CHUNK_COUNT = 16  # company_policies_western_capital.pdf: 6 pages -> 16 chunks
 
 
-def test_index_builds_from_every_pdf_in_policies_dir():
-    """The corpus is discovered dynamically (glob), not from a hardcoded
-    list - this just confirms every *.pdf currently in data/policies/ ended
-    up in the index."""
+def _seeded_policies_dir(tmp_path: Path, monkeypatch) -> Path:
+    """Copy the example PDF into an isolated temp folder and point
+    ingest.POLICIES_DIR at it."""
+    policies_dir = tmp_path / "policies"
+    policies_dir.mkdir()
+    shutil.copy(EXAMPLE_PDF, policies_dir / EXAMPLE_PDF.name)
+    monkeypatch.setattr(ingest, "POLICIES_DIR", policies_dir)
+    return policies_dir
+
+
+def test_build_index_raises_clear_error_when_policies_dir_is_empty(tmp_path, monkeypatch):
+    """This is the real starting state of data/policies/ - an empty folder
+    should fail with a clear message, not a cryptic FAISS crash."""
+    monkeypatch.setattr(ingest, "POLICIES_DIR", tmp_path)
+    with pytest.raises(ValueError, match="No PDF files found"):
+        build_index()
+
+
+def test_build_index_produces_expected_chunks_and_metadata(tmp_path, monkeypatch):
+    policies_dir = _seeded_policies_dir(tmp_path, monkeypatch)
     index = build_index()
-    sources = {
-        doc.metadata["source_file"] for doc in index.docstore._dict.values()
-    }
-    expected_sources = {p.name for p in ingest.POLICIES_DIR.glob("*.pdf")}
-    assert sources == expected_sources
 
-
-def test_known_pdf_chunk_count_matches_expected():
-    """Catches silent regressions in chunking parameters, checked against
-    the one PDF we know the exact expected count for. Deliberately doesn't
-    assert the *total* index size, since data/policies/ - and therefore the
-    index - can legitimately grow at any time via the upload feature; a
-    hardcoded grand total would break the moment someone uploads a PDF."""
-    index = build_index()
-    chunks_for_known_pdf = [
-        doc for doc in index.docstore._dict.values()
-        if doc.metadata["source_file"] == KNOWN_PDF
-    ]
-    assert len(chunks_for_known_pdf) == EXPECTED_CHUNK_COUNT
-
-
-def test_every_chunk_has_citation_metadata():
-    """Every chunk must carry source_file + page metadata - needed for the
-    RAG agent's citations."""
-    index = build_index()
+    assert index.index.ntotal == EXPECTED_CHUNK_COUNT
     for doc in index.docstore._dict.values():
-        assert "source_file" in doc.metadata
+        assert doc.metadata["source_file"] == EXAMPLE_PDF.name
         assert "page" in doc.metadata
+    assert {p.name for p in policies_dir.glob("*.pdf")} == {EXAMPLE_PDF.name}
 
 
-def test_add_pdf_to_index_increases_chunk_count(tmp_path, monkeypatch):
-    """add_pdf_to_index() should merge a new PDF's chunks into the existing
-    combined index on disk. Uses an isolated temp copy of the index (via
-    monkeypatching INDEX_DIR) so this test never mutates the real,
-    persisted demo vectorstore."""
-    monkeypatch.setattr(ingest, "INDEX_DIR", tmp_path)
-    build_index().save_local(str(tmp_path))
+def test_add_pdf_to_index_creates_index_when_none_exists(tmp_path, monkeypatch):
+    """The very first upload (no index yet) should create a fresh index,
+    not try to merge into a nonexistent one - this is the real starting
+    state a user hits before ever uploading a PDF."""
+    monkeypatch.setattr(ingest, "INDEX_DIR", tmp_path / "vectorstore")
+    assert ingest.index_exists() is False
 
+    added = ingest.add_pdf_to_index(EXAMPLE_PDF)
+
+    assert added == EXPECTED_CHUNK_COUNT
+    assert ingest.index_exists() is True
+
+
+def test_add_pdf_to_index_merges_into_existing_index(tmp_path, monkeypatch):
+    """A second upload should merge into (not replace) the existing index."""
+    monkeypatch.setattr(ingest, "INDEX_DIR", tmp_path / "vectorstore")
+    ingest.add_pdf_to_index(EXAMPLE_PDF)
     original_count = ingest.load_index().index.ntotal
 
-    # Re-ingest the same PDF again as a stand-in for a freshly "uploaded" one.
-    pdf_path = next(ingest.POLICIES_DIR.glob("*.pdf"))
-    added = ingest.add_pdf_to_index(pdf_path)
+    added = ingest.add_pdf_to_index(EXAMPLE_PDF)  # stand-in for a second upload
 
-    updated_count = ingest.load_index().index.ntotal
-    assert added > 0
-    assert updated_count == original_count + added
+    assert ingest.load_index().index.ntotal == original_count + added
 
 
-def test_is_duplicate_pdf_detects_same_content():
-    """Uploading a PDF whose content matches an existing file (even under a
-    different filename) should be detected as a duplicate, by hashing
-    content rather than comparing filenames."""
-    existing_pdf = next(ingest.POLICIES_DIR.glob("*.pdf"))
-    same_content = existing_pdf.read_bytes()
+def test_is_duplicate_pdf_detects_same_content(tmp_path, monkeypatch):
+    _seeded_policies_dir(tmp_path, monkeypatch)
+    same_content = EXAMPLE_PDF.read_bytes()
     assert ingest.is_duplicate_pdf(same_content) is True
 
 
-def test_is_duplicate_pdf_returns_false_for_new_content():
+def test_is_duplicate_pdf_returns_false_for_new_content(tmp_path, monkeypatch):
+    _seeded_policies_dir(tmp_path, monkeypatch)
     assert ingest.is_duplicate_pdf(b"this is not a real pdf, just new bytes") is False
 
 
-def test_refund_query_retrieves_relevant_chunk_with_citation_metadata():
-    """An actual relevance + citation-metadata check for a refund question,
-    against the single combined index."""
+def test_refund_query_retrieves_relevant_chunk_with_citation_metadata(tmp_path, monkeypatch):
+    """An actual relevance + citation-metadata check for a refund question."""
+    _seeded_policies_dir(tmp_path, monkeypatch)
     index = build_index()
     results = index.similarity_search("What is the current refund policy?", k=1)
-    assert len(results) == 1
-    top_result = results[0]
-    assert "refund" in top_result.page_content.lower()
-    assert top_result.metadata["source_file"].endswith(".pdf")
-    assert "page" in top_result.metadata  # needed for citations later
+    assert "refund" in results[0].page_content.lower()
+    assert "page" in results[0].metadata  # needed for citations

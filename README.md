@@ -41,7 +41,8 @@ when it doesn't have enough information.
   ticket history from SQL, with a natural-language summary.
 - **Ask about a policy:** "What is the current refund policy?" → retrieves
   the relevant policy section and answers using only that content, with a
-  citation (source document + page number).
+  citation (source document + page number). Requires at least one PDF to
+  have been uploaded first - see below.
 - **Ask something needing both:** "Is she eligible for a refund on her
   canceled order, based on our policy?" → the agent calls *both* tools,
   reads what each returns, and combines them into one answer.
@@ -50,8 +51,10 @@ when it doesn't have enough information.
 - **Guardrails:** off-topic questions ("what's the capital of France?") are
   politely declined instead of answered by guesswork; the SQL agent can only
   ever run a read-only `SELECT`, never a data-modifying query.
-- **Upload new policy PDFs** directly from the UI and have them searchable
-  immediately.
+- **Upload policy PDFs** directly from the UI and have them searchable
+  immediately - the app ships with **no policy PDF pre-loaded**, so this is
+  how the policy knowledge base gets populated in the first place (see
+  [`Example_PDF/`](#data--attribution) for a ready-to-upload sample).
 - **MCP server:** the same capabilities are exposed as MCP tools for any
   MCP-compatible client (e.g., another agent).
 
@@ -129,6 +132,8 @@ TCS_Assignment/
 ├── app.py                      # Streamlit chat UI
 ├── requirements.txt
 ├── .env.example                # copy to .env and fill in your DeepSeek key
+├── Example_PDF/
+│   └── company_policies_western_capital.pdf  # sample PDF to upload and try the RAG side
 ├── common/
 │   ├── config.py                # loads .env
 │   └── llm.py                   # shared DeepSeek chat model client
@@ -138,7 +143,7 @@ TCS_Assignment/
 │   ├── seed_db.py                # synthetic data (Faker + a hand-written "Ema" fixture)
 │   └── inspect_db.py             # manual sanity-check script
 ├── data/
-│   └── policies/                  # the real policy PDF (see Data & attribution)
+│   └── policies/                  # empty by default - populated by uploading a PDF via the UI
 ├── rag/
 │   ├── embeddings.py              # local embedding model
 │   ├── ingest.py                  # PDF -> chunks -> one combined FAISS index
@@ -182,13 +187,13 @@ copy .env.example .env       # Windows: copy | macOS/Linux: cp
 
 # 5. Create and seed the database
 python db/seed_db.py
-
-# 6. Build the policy document vector index
-python rag/ingest.py
 ```
 
-That's it - everything else (the policy PDF, the schema) is already
-included in the repo.
+That's it - the schema and synthetic customer data are ready to go. The
+policy knowledge base starts **empty** on purpose (see
+[Data & attribution](#data--attribution)) - run the app and upload
+`Example_PDF/company_policies_western_capital.pdf` via the sidebar to try
+the policy-question features.
 
 ## Usage
 
@@ -205,13 +210,8 @@ python agents/mcp_client.py "What is the current refund policy?"
 # agent itself or in the MCP layer)
 python agents/graph.py "Give me an overview of customer Ema's profile and past support ticket details."
 
-# Run the MCP server manually, e.g. for an external MCP client (Claude
-# Desktop, an MCP inspector, another agent) - stdio is the default,
-# matching what most MCP clients expect
-python mcp_server/server.py               # stdio transport
-python mcp_server/server.py streamable-http   # HTTP transport (what app.py uses)
-
-# Run the evaluation suite (accuracy / faithfulness / latency report)
+# Run the evaluation suite (accuracy / faithfulness / latency report) -
+# auto-ingests Example_PDF/ into the real index first if nothing's there yet
 python eval/run_eval.py
 
 # Run the automated test suite
@@ -231,18 +231,26 @@ Thompson," is hand-written with a fixed 4-ticket history so the assignment's
 example query has a stable, known-correct answer. **No real personal data is
 used anywhere in this project.**
 
-**Policy documents** (`data/policies/`): a single real, publicly available
-PDF - no self-authored content.
+**Policy documents:** `data/policies/` ships **empty** - no PDF is
+pre-ingested. The app is meant to start with no policy knowledge base at
+all, and get populated by uploading a PDF through the Streamlit UI (this
+is also how a real deployment would work: "John uploads company policy PDF
+documents to the system").
+
+A ready-to-use sample lives in `Example_PDF/`, separate from
+`data/policies/` so it's never auto-ingested:
+
 | File | Pages | Source |
 |---|---|---|
 | `company_policies_western_capital.pdf` | 6 | [Western Capital Advisors Pvt Limited](https://westerncap.in/pdfs/privacy-policy-cancellation-and-refund-shipping-and-delivery.pdf) - a genuine document covering Privacy Policy, Cancellation & Refund, and Shipping & Delivery all in one file |
 
 Publicly hosted by the organization and included here for
-demonstration/educational purposes as part of a job assessment. New PDFs
-can be added at any time - either by dropping a file in `data/policies/`
-and re-running `rag/ingest.py`, or through the Streamlit UI's upload
-feature - with no code changes required, since the index is built from
-whatever PDFs are present rather than a fixed, hardcoded list.
+demonstration/educational purposes as part of a job assessment. Upload it
+(or any other PDF) via the sidebar to start asking policy questions - new
+PDFs can be added at any time this way, or by dropping a file directly in
+`data/policies/` and running `rag/ingest.py`, with no code changes required
+since the index is built from whatever PDFs are present rather than a
+fixed, hardcoded list.
 
 ## Testing & evaluation
 
@@ -261,10 +269,14 @@ The test suite has two layers:
   test, the Streamlit `AppTest` chat test, and the full evaluation suite.
   All marked `@pytest.mark.skipif` and skip automatically when
   `DEEPSEEK_API_KEY` isn't set, so CI without a key still passes cleanly,
-  while a local run with a key gets full end-to-end verification.
+  while a local run with a key gets full end-to-end verification. Tests
+  that need real policy content use the `seeded_index` fixture
+  (`tests/conftest.py`), which builds an isolated temp index from
+  `Example_PDF/` - the real `rag/vectorstore/` (empty by default) is never
+  touched by the test suite.
 
 ```bash
-pytest tests/ -v          # full suite (44 tests)
+pytest tests/ -v          # full suite (45 tests)
 python eval/run_eval.py   # standalone evaluation report
 ```
 

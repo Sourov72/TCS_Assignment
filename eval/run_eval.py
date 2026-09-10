@@ -25,13 +25,25 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "agents"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "rag"))
 
+import ingest
 from cases import EVAL_CASES
 from graph import ask as ask_graph
 from rag_agent import answer_policy_question
 from sql_agent import answer_sql_question
 
 CHARS_PER_TOKEN_ESTIMATE = 4  # rough rule-of-thumb, not an exact tokenizer
+
+EXAMPLE_PDF = Path(__file__).parent.parent / "Example_PDF" / "company_policies_western_capital.pdf"
+
+
+def _ensure_policy_index_seeded() -> None:
+    """data/policies/ ships empty (see README) - seed the real index from
+    Example_PDF/ if nothing has been ingested yet, so the RAG eval cases
+    have real content to search."""
+    if not ingest.index_exists():
+        ingest.add_pdf_to_index(EXAMPLE_PDF)
 
 
 def _estimate_tokens(*texts: str) -> int:
@@ -86,6 +98,7 @@ def run_case(case: dict) -> dict:
 
 def run_eval() -> list:
     """Run every case in EVAL_CASES and return their graded results."""
+    _ensure_policy_index_seeded()
     return [run_case(case) for case in EVAL_CASES]
 
 

@@ -99,10 +99,13 @@ def test_mcp_server_end_to_end_over_stdio():
                     "ask_support_assistant",
                 }.issubset(tool_names)
 
+                # Uses a SQL question, not a policy one: the subprocess can't
+                # share this test's fixtures, and data/policies/ ships empty
+                # by default, while db/support.db is always seeded.
                 result = await session.call_tool(
-                    "search_policy_documents", {"question": "What is the current refund policy?"}
+                    "query_customer_data", {"question": "What plan is Ema Thompson on?"}
                 )
                 answer_text = result.content[0].text
-                assert "refund" in answer_text.lower()
+                assert "pro" in answer_text.lower()
 
     asyncio.run(run())

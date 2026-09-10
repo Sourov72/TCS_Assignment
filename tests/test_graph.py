@@ -36,7 +36,7 @@ def test_ask_answers_a_sql_question():
     assert "pro" in answer.lower()
 
 
-def test_ask_answers_a_policy_question():
+def test_ask_answers_a_policy_question(seeded_index):
     answer = ask("What is the current refund policy?", thread_id=_new_thread())
     assert "refund" in answer.lower()
 
@@ -58,7 +58,7 @@ def test_ask_asks_for_clarification_on_unresolved_pronoun():
     assert "sherry" not in answer.lower()  # must not guess a random unrelated customer
 
 
-def test_ask_remembers_conversation_and_combines_both_tools():
+def test_ask_remembers_conversation_and_combines_both_tools(seeded_index):
     """After establishing a customer earlier in the conversation, a
     follow-up question needing both customer data and policy content should
     resolve the pronoun and answer using both - not ask for clarification."""

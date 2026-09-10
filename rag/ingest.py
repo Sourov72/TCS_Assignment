@@ -82,6 +82,12 @@ def ingest_all() -> None:
     print(f"Saved index ({index.index.ntotal} chunks) to {INDEX_DIR}")
 
 
+def index_exists() -> bool:
+    """Check whether a FAISS index has been persisted yet. False on a fresh
+    checkout, before any PDF has been ingested."""
+    return (INDEX_DIR / "index.faiss").exists()
+
+
 def load_index() -> FAISS:
     """Load the persisted combined FAISS index from disk."""
     return FAISS.load_local(
@@ -111,13 +117,21 @@ def is_duplicate_pdf(file_bytes: bytes) -> bool:
 
 def add_pdf_to_index(pdf_path: Path) -> int:
     """Chunk + tag + embed one new PDF and merge it into the combined index
-    on disk (used by the Streamlit upload feature). Returns chunk count added."""
+    on disk (used by the Streamlit upload feature). If no index exists yet
+    (nothing ingested so far), this creates the very first one from just
+    this PDF instead of merging into a non-existent index. Returns chunk
+    count added."""
     pages = _load_pdf_pages(pdf_path)
     chunks = _chunk_pages(pages)
     _tag_source_file(chunks, pdf_path.name)
 
-    index = load_index()
-    index.add_documents(chunks)
+    if index_exists():
+        index = load_index()
+        index.add_documents(chunks)
+    else:
+        index = FAISS.from_documents(chunks, get_embedding_model())
+
+    INDEX_DIR.mkdir(parents=True, exist_ok=True)
     index.save_local(str(INDEX_DIR))
 
     return len(chunks)

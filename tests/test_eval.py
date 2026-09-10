@@ -21,7 +21,7 @@ from run_eval import print_report, run_eval  # noqa: E402
 
 
 @pytest.mark.skipif(not DEEPSEEK_API_KEY, reason="requires a real DEEPSEEK_API_KEY")
-def test_eval_suite_passes_completely():
+def test_eval_suite_passes_completely(seeded_index):
     """Every case in the curated eval set should pass against the real
     system - a failure here means a real regression in answer quality,
     routing, or retrieval faithfulness, not a flaky/unrelated test issue."""
