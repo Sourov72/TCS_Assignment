@@ -137,7 +137,7 @@ session via a LangGraph checkpointer, so follow-up questions work naturally.
 ## Project structure
 
 ```
-support-copilot/
+TCS_Assignment/
 ├── app.py                      # Streamlit chat UI
 ├── requirements.txt
 ├── .env.example                # copy to .env and fill in your DeepSeek key
@@ -177,7 +177,8 @@ support-copilot/
 
 ```bash
 # 1. Clone and enter the project
-cd support-copilot
+git clone https://github.com/Sourov72/TCS_Assignment.git
+cd TCS_Assignment
 
 # 2. Create and activate a virtual environment
 python -m venv venv
