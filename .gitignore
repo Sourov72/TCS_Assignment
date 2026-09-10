@@ -1,0 +1,17 @@
+# Secrets
+.env
+
+# Virtual environment
+venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated artifacts (regenerate with db/seed_db.py and rag/ingest.py)
+db/support.db
+rag/vectorstore/
+
+# Private working notes - not for the submitted repo
+DESIGN_LOG.md

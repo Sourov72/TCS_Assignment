@@ -1,0 +1,32 @@
+# --- Core orchestration ---
+langchain
+langgraph
+langchain-community
+
+# --- LLM (DeepSeek, via OpenAI-compatible API) ---
+langchain-openai
+
+# --- Embeddings (local, no API key needed) ---
+langchain-huggingface
+sentence-transformers
+
+# --- Vector store ---
+faiss-cpu
+
+# --- PDF handling ---
+pypdf
+
+# --- MCP server ---
+mcp
+
+# --- UI ---
+streamlit
+
+# --- Data / DB ---
+faker
+
+# --- Config / utils ---
+python-dotenv
+
+# --- Testing ---
+pytest
