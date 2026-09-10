@@ -51,7 +51,7 @@ when it doesn't have enough information.
   politely declined instead of answered by guesswork; the SQL agent can only
   ever run a read-only `SELECT`, never a data-modifying query.
 - **Upload new policy PDFs** directly from the UI and have them searchable
-  immediately - no category to pick, they join the same shared knowledge base.
+  immediately.
 - **MCP server:** the same capabilities are exposed as MCP tools for any
   MCP-compatible client (e.g., another agent).
 
@@ -66,7 +66,7 @@ when it doesn't have enough information.
                     │  MCP Server │  mcp_server/server.py
                     │ (also used  │  same server + tools any external
                     │ by external │  MCP client can connect to
-                    │ MCP clients)│  (Claude Desktop, an inspector, ...)
+                    │ MCP clients)│  
                     └──────┬──────┘
                     ┌──────▼───────┐
                     │  ReAct Agent  │  reasons about which tool(s) it
@@ -81,15 +81,14 @@ when it doesn't have enough information.
       └───────┬───────┘          └───────┬───────┘
               │                          │
       ┌───────▼───────┐          ┌───────▼───────┐
-      │   SQLite      │          │  One combined │
-      │ customers,    │          │  FAISS index  │
-      │ tickets       │          │ (all PDFs)    │
+      │   SQLite      │          │  One   FAISS  │
+      │ customers,    │          │     index     │
+      │ tickets       │          │   (all PDFs)  │
       └───────────────┘          └───────────────┘
 ```
 
-Both the Streamlit UI and any external MCP client (Claude Desktop, an MCP
-inspector, another agent) go through the **same** MCP server and the same
-underlying agents - there's exactly one place this logic lives.
+Both the Streamlit UI and any external MCP client  go through the **same** MCP server and the same
+underlying agents.
 
 **How a question is answered:**
 
@@ -97,9 +96,7 @@ underlying agents - there's exactly one place this logic lives.
 over MCP (HTTP transport), via the client in `agents/mcp_client.py`. The
 server auto-starts in the background the first time it's needed (checked by
 `app.py` on page load), so running the app is still one command even though
-two processes end up running. HTTP transport is used instead of stdio
-because stdio ties a subprocess's lifetime to one client session, which
-doesn't fit Streamlit's rerun-per-interaction execution model.
+two processes end up running.
 
 `agents/graph.py` builds a **ReAct agent** (via `langchain.agents.create_agent`,
 which compiles to a LangGraph graph under the hood) with two tools:
@@ -112,15 +109,6 @@ which compiles to a LangGraph graph under the hood) with two tools:
   built from every PDF in `data/policies/`, and answers using only those
   sections (with citations). 
 
-Rather than a fixed  pipeline, the agent
-itself reasons about what to do each turn: it decides whether it has enough
-information before calling a tool (e.g. it will ask "which customer do you
-mean?" instead of guessing if a question uses an unresolved pronoun with no
-customer established yet), can call one tool, read the result, and then
-call the second tool informed by what it learned (genuinely cross-
-referencing customer data with policy content), and declines questions
-that need neither tool. Conversation history is remembered per browser
-session via a LangGraph checkpointer, so follow-up questions work naturally.
 
 ## Tech stack
 
@@ -296,14 +284,11 @@ python eval/run_eval.py   # standalone evaluation report
 - **The evaluation script's token/cost figures are approximate** (a
   character-based estimate), not exact billed usage - getting exact usage
   would mean threading a callback/usage object through the agents' internal
-  LLM calls, which felt like too invasive a change to already-tested code
-  just for this reporting feature.
-- **No Docker** anywhere in this project (a deliberate choice); SQLite and a
+  LLM calls.
+- **No Docker** anywhere in this project. SQLite and a
   local FAISS index mean everything runs as plain local processes.
 - **The MCP server, once auto-started, keeps running** after the Streamlit
   app is closed - it's a separate, independent process by design (so it
   survives Streamlit reruns), but that also means it isn't automatically
   cleaned up. If port `8933` is ever in a bad state, stop the stray
   `mcp_server/server.py` process manually and reload the page.
-- Designed and tested for **single-user/demo scale**, not concurrent
-  multi-tenant production use.
