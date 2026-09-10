@@ -59,7 +59,7 @@ when it doesn't have enough information.
 
 ```
                     ┌─────────────┐
-   User ──chat/PDF──▶  Streamlit   │
+   User ──chat/PDF──▶  Streamlit  │
                     └──────┬──────┘
                            │ MCP (HTTP, auto-started)
                     ┌──────▼──────┐
