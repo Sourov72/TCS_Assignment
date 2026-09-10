@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent / "common"))
 sys.path.insert(0, str(Path(__file__).parent / "rag"))
 
 from config import DEEPSEEK_API_KEY  # noqa: E402
-from ingest import add_pdf_to_index, is_duplicate_pdf  # noqa: E402
+from ingest import add_pdf_to_index, index_exists, is_duplicate_pdf  # noqa: E402
 from mcp_client import ask as ask_assistant  # noqa: E402
 from mcp_client import ensure_server_running  # noqa: E402
 
@@ -83,9 +83,15 @@ def _handle_pdf_upload() -> None:
         destination.write_bytes(file_bytes)
 
         with st.sidebar.spinner("Chunking and embedding..."):
-            add_pdf_to_index(destination)
+            chunk_count = add_pdf_to_index(destination)
+            # Belt-and-braces: confirm the index was actually persisted to
+            # disk before telling the user it's ready to search, rather than
+            # trusting that add_pdf_to_index() didn't fail silently.
+            if not index_exists():
+                st.sidebar.error("Ingestion did not complete - index file was not written.")
+                return
 
-        st.sidebar.success("Upload successful.")
+        st.sidebar.success(f"Upload successful ({chunk_count} chunk(s) indexed).")
 
 
 def main() -> None:

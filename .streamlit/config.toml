@@ -1,0 +1,9 @@
+[server]
+# Disabled: with sentence-transformers/torch/transformers loaded, Streamlit's
+# default watcher re-scans every loaded module (including transformers' huge
+# submodule tree) on every script rerun to detect new local files, which adds
+# real latency to every chat message and produces noisy caught ImportError
+# tracebacks for optional model architectures we don't use (e.g. torchvision-
+# dependent image models). We don't rely on Streamlit's hot-reload during
+# normal use - restart the server manually after code changes instead.
+fileWatcherType = "none"
