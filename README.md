@@ -260,22 +260,23 @@ whatever PDFs are present rather than a fixed, hardcoded list.
 
 The test suite has two layers:
 
-- **Unit tests** (mocked LLM calls) - fast, free, and always runnable without
-  a real API key. These cover the SQL safety guardrail (read-only, no
-  data-modifying statements), chunking/retrieval correctness, citation
-  formatting, and the tool wrappers.
+- **Fast tests** - no LLM involved, so these are free and always runnable
+  without a real API key. They cover the SQL safety guardrail (read-only, no
+  data-modifying statements), real queries against the seeded `db/support.db`,
+  real FAISS retrieval, citation formatting, and the tool wrappers (mocking
+  the SQL/RAG agents' plain dict-returning functions, not an LLM).
 - **Live integration tests** - several tests actually call the real DeepSeek
   API, since the agent's core behaviors (asking for clarification on an
   ambiguous question, combining both tools, declining out-of-scope
   questions) are genuine LLM reasoning that can't be meaningfully verified
-  with a mocked model. This includes `tests/test_graph.py`, the MCP server
+  without the real model. This includes `tests/test_graph.py`, the MCP server
   test, the Streamlit `AppTest` chat test, and the full evaluation suite.
   All marked `@pytest.mark.skipif` and skip automatically when
   `DEEPSEEK_API_KEY` isn't set, so CI without a key still passes cleanly,
   while a local run with a key gets full end-to-end verification.
 
 ```bash
-pytest tests/ -v          # full suite (52 tests)
+pytest tests/ -v          # full suite (44 tests)
 python eval/run_eval.py   # standalone evaluation report
 ```
 
