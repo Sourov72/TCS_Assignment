@@ -14,7 +14,7 @@ data, policy documents, both, or neither), remembers the conversation
 across turns, and asks for clarification or declines rather than guessing
 when it doesn't have enough information.
 
-**Demo video:** _TODO - add the recorded demo link here before submitting._
+**Demo video:** [video](https://drive.google.com/file/d/1D5kS31WuythczkZ_os1symWd8p_dglAU/view?usp=sharing)
 
 ---
 
